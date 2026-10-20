@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="PruebaTecnica.API/PruebaTecnica.API.csproj" />
+  <Project Path="PruebaTecnica.Core/PruebaTecnica.Core.csproj" />
+  <Project Path="PruebaTecnica.Infrastructure/PruebaTecnica.Infrastructure.csproj" />
+</Solution>

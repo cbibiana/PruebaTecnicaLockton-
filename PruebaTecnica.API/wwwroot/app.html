@@ -1,0 +1,209 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Principal</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background: #1a1a2e; color: #fff; }
+        .header { background: #16213e; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e94560; }
+        .header h2 { color: #e94560; }
+        .user-info { display: flex; align-items: center; gap: 15px; }
+        .user-info span { color: #a8a8b3; }
+        .btn-logout { padding: 8px 16px; background: #e94560; color: #fff; border: none; border-radius: 5px; cursor: pointer; }
+        .container { display: flex; min-height: calc(100vh - 60px); }
+        .sidebar { width: 250px; background: #16213e; padding: 20px 0; }
+        .sidebar a { display: block; padding: 12px 25px; color: #a8a8b3; text-decoration: none; border-left: 3px solid transparent; }
+        .sidebar a:hover, .sidebar a.active { background: #0f3460; color: #fff; border-left-color: #e94560; }
+        .content { flex: 1; padding: 30px; }
+        .card { background: #16213e; border-radius: 10px; padding: 25px; margin-bottom: 20px; }
+        .card h3 { color: #e94560; margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px 15px; text-align: left; border-bottom: 1px solid #333; }
+        th { background: #0f3460; color: #e94560; }
+        .btn { padding: 8px 16px; background: #e94560; color: #fff; border: none; border-radius: 5px; cursor: pointer; margin: 2px; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-success { background: #51cf66; }
+        .btn-danger { background: #ff6b6b; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: #a8a8b3; }
+        .form-group input { width: 100%; padding: 10px; border: 1px solid #333; border-radius: 5px; background: #0f3460; color: #fff; }
+        .form-row { display: flex; gap: 15px; }
+        .form-row .form-group { flex: 1; }
+        .alert { padding: 10px 15px; border-radius: 5px; margin-bottom: 15px; display: none; }
+        .alert-success { background: #2b8a3e; display: block; }
+        .alert-error { background: #c92a2a; display: block; }
+        .checkbox-list { display: flex; flex-wrap: wrap; gap: 10px; }
+        .checkbox-item { background: #0f3460; padding: 8px 15px; border-radius: 5px; display: flex; align-items: center; gap: 8px; }
+        .checkbox-item input { width: auto; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>Prueba Tecnica - Lockton</h2>
+        <div class="user-info">
+            <span id="userName"></span>
+            <button class="btn-logout" onclick="logout()">Cerrar Sesion</button>
+        </div>
+    </div>
+    <div class="container">
+        <div class="sidebar" id="sidebar"></div>
+        <div class="content" id="content">
+            <div class="card">
+                <h3>Bienvenido</h3>
+                <p>Selecciona una opcion del menu lateral.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Obtener token y usuario de la URL
+        var params = new URLSearchParams(window.location.search);
+        var token = params.get('t');
+        var usuario = null;
+        try { usuario = JSON.parse(params.get('u')); } catch(e) {}
+
+        // Si no hay token en URL, intentar cookie
+        if (!token) {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var c = cookies[i].trim();
+                if (c.indexOf('token=') === 0) token = c.substring(6);
+                if (c.indexOf('usuario=') === 0) {
+                    try { usuario = JSON.parse(decodeURIComponent(c.substring(8))); } catch(e) {}
+                }
+            }
+        }
+
+        if (!token) { window.location.href = '/index.html'; }
+
+        document.getElementById('userName').textContent = usuario ? usuario.nombre : 'Usuario';
+
+        var headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+
+        async function cargarMenus() {
+            try {
+                var res = await fetch('/api/menus/mis-menus', { headers: headers });
+                if (res.status === 401) { logout(); return; }
+                var menus = await res.json();
+                var sidebar = document.getElementById('sidebar');
+                sidebar.innerHTML = '';
+                menus.forEach(function(m) {
+                    var a = document.createElement('a');
+                    a.href = '#';
+                    a.textContent = m.nombre;
+                    a.onclick = function(e) { e.preventDefault(); navegarA(m.ruta, a); };
+                    sidebar.appendChild(a);
+                });
+            } catch (e) { console.error(e); }
+        }
+
+        function navegarA(ruta, link) {
+            document.querySelectorAll('.sidebar a').forEach(function(a) { a.classList.remove('active'); });
+            if (link) link.classList.add('active');
+            if (ruta === '/dashboard') mostrarDashboard();
+            else if (ruta === '/usuarios') mostrarUsuarios();
+            else if (ruta === '/reportes') mostrarReportes();
+            else if (ruta === '/configuracion') mostrarConfiguracion();
+        }
+
+        function mostrarDashboard() {
+            document.getElementById('content').innerHTML = '<div class="card"><h3>Dashboard</h3><p>Panel principal del sistema. Bienvenido, ' + (usuario ? usuario.nombre : '') + '.</p></div>';
+        }
+
+        async function mostrarUsuarios() {
+            var content = document.getElementById('content');
+            content.innerHTML = '<div class="card"><h3>Administracion de Usuarios</h3><div id="alertUser"></div>' +
+                '<div class="form-row"><div class="form-group"><label>Nombre</label><input id="uNombre" placeholder="Nombre completo"></div>' +
+                '<div class="form-group"><label>Correo</label><input id="uCorreo" placeholder="correo@ejemplo.com"></div>' +
+                '<div class="form-group"><label>Contrasena</label><input id="uPassword" type="password" placeholder="Contrasena"></div></div>' +
+                '<button class="btn" onclick="crearUsuario()">Crear Usuario</button></div>' +
+                '<div class="card"><h3>Usuarios Registrados</h3><table><thead><tr><th>Nombre</th><th>Correo</th><th>Estado</th><th>Fecha Creacion</th><th>Acciones</th></tr></thead><tbody id="tablaUsuarios"></tbody></table></div>';
+            await cargarUsuarios();
+        }
+
+        async function cargarUsuarios() {
+            var res = await fetch('/api/users', { headers: headers });
+            var usuarios = await res.json();
+            var tbody = document.getElementById('tablaUsuarios');
+            tbody.innerHTML = '';
+            usuarios.forEach(function(u) {
+                tbody.innerHTML += '<tr><td>' + u.nombre + '</td><td>' + u.correo + '</td><td>' + (u.activo ? 'Activo' : 'Inactivo') + '</td><td>' + new Date(u.fechaCreacion).toLocaleDateString() + '</td><td><button class="btn btn-sm" onclick="mostrarAsignarMenus(\'' + u.id + '\', \'' + u.nombre + '\')">Asignar Menus</button></td></tr>';
+            });
+        }
+
+        async function crearUsuario() {
+            var nombre = document.getElementById('uNombre').value;
+            var correo = document.getElementById('uCorreo').value;
+            var password = document.getElementById('uPassword').value;
+            var alertEl = document.getElementById('alertUser');
+            if (!nombre || !correo || !password) { alertEl.className = 'alert alert-error'; alertEl.textContent = 'Todos los campos son requeridos'; return; }
+            var res = await fetch('/api/users', {
+                method: 'POST', headers: headers,
+                body: JSON.stringify({ nombre: nombre, correo: correo, password: password })
+            });
+            if (res.ok) {
+                alertEl.className = 'alert alert-success'; alertEl.textContent = 'Usuario creado exitosamente';
+                document.getElementById('uNombre').value = '';
+                document.getElementById('uCorreo').value = '';
+                document.getElementById('uPassword').value = '';
+                await cargarUsuarios();
+            } else {
+                var data = await res.json();
+                alertEl.className = 'alert alert-error'; alertEl.textContent = data.mensaje || 'Error al crear usuario';
+            }
+        }
+
+        async function mostrarAsignarMenus(userId, userName) {
+            var menusRes = await fetch('/api/menus', { headers: headers });
+            var todosMenus = await menusRes.json();
+            var asignadosRes = await fetch('/api/users/' + userId + '/menus', { headers: headers });
+            var asignados = await asignadosRes.json();
+            var asignadosIds = asignados.map(function(m) { return m.id; });
+            var content = document.getElementById('content');
+            var checkboxes = '';
+            todosMenus.forEach(function(m) {
+                var checked = asignadosIds.includes(m.id) ? 'checked' : '';
+                checkboxes += '<div class="checkbox-item"><input type="checkbox" value="' + m.id + '" ' + checked + '><label>' + m.nombre + ' - ' + (m.descripcion || '') + '</label></div>';
+            });
+            content.innerHTML = '<div class="card"><h3>Asignar Menus a: ' + userName + '</h3><div id="alertMenu"></div>' +
+                '<div class="checkbox-list">' + checkboxes + '</div><br>' +
+                '<button class="btn" onclick="guardarMenus(\'' + userId + '\')">Guardar Asignacion</button> ' +
+                '<button class="btn btn-danger" onclick="mostrarUsuarios()">Volver</button></div>';
+        }
+
+        async function guardarMenus(userId) {
+            var checkboxes = document.querySelectorAll('.checkbox-item input:checked');
+            var menuIds = Array.from(checkboxes).map(function(cb) { return cb.value; });
+            var alertEl = document.getElementById('alertMenu');
+            var res = await fetch('/api/users/' + userId + '/menus', {
+                method: 'PUT', headers: headers,
+                body: JSON.stringify({ menuIds: menuIds })
+            });
+            if (res.ok) {
+                alertEl.className = 'alert alert-success'; alertEl.textContent = 'Menus asignados correctamente';
+                await cargarMenus();
+            } else {
+                alertEl.className = 'alert alert-error'; alertEl.textContent = 'Error al asignar menus';
+            }
+        }
+
+        function mostrarReportes() {
+            document.getElementById('content').innerHTML = '<div class="card"><h3>Reportes</h3><p>Modulo de reportes del sistema.</p></div>';
+        }
+
+        function mostrarConfiguracion() {
+            document.getElementById('content').innerHTML = '<div class="card"><h3>Configuracion</h3><p>Configuracion general del sistema.</p></div>';
+        }
+
+        function logout() {
+            document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+            document.cookie = 'usuario=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+            window.location.href = '/index.html';
+        }
+
+        cargarMenus();
+    </script>
+</body>
+</html>
